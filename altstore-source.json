@@ -8,12 +8,12 @@
       "developerName": "Ayush Sachdeva",
       "subtitle": "Estonian IPO tracker",
       "localizedDescription": "Tracks upcoming Estonian public offerings from NASDAQ Baltic and sends daily notifications when new offerings appear.",
-      "iconURL": "https://raw.githubusercontent.com/YOUR_USERNAME/bondfather-altstore/main/icon.png",
+      "iconURL": "https://raw.githubusercontent.com/ayush000/bondfather/main/bondfather/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
       "versions": [
         {
           "version": "1.0",
           "date": "2026-05-07",
-          "downloadURL": "https://github.com/YOUR_USERNAME/bondfather-altstore/releases/download/v1.0/bondfather.ipa",
+          "downloadURL": "https://github.com/ayush000/bondfather/releases/download/v1.0/bondfather.ipa",
           "size": 12223604
         }
       ]
