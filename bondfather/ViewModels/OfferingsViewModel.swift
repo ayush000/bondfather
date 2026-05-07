@@ -12,7 +12,7 @@ final class OfferingsViewModel {
     private let service = OfferingService()
 
     func load() async {
-        loadState = .loading
+        if case .loaded = loadState {} else { loadState = .loading }
         do {
             let offerings = try await service.fetchOfferings()
             loadState = .loaded(offerings.sorted {

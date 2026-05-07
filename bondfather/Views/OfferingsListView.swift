@@ -7,8 +7,8 @@ struct OfferingsListView: View {
         NavigationView {
             content
                 .navigationTitle("Estonian IPOs")
-                .task { await viewModel.load() }
         }
+        .task { await viewModel.load() }
     }
 
     @ViewBuilder
