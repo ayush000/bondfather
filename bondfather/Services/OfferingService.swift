@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 
 enum OfferingServiceError: Error {
     case invalidURL
