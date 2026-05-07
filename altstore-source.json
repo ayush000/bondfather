@@ -9,6 +9,12 @@
       "subtitle": "Estonian IPO tracker",
       "localizedDescription": "Tracks upcoming Estonian public offerings from NASDAQ Baltic and sends daily notifications when new offerings appear.",
       "iconURL": "https://raw.githubusercontent.com/ayush000/bondfather/main/bondfather/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+      "permissions": [
+        {
+          "type": "get-task-allow",
+          "usageDescription": "Included in all development-signed apps; allows a debugger to attach."
+        }
+      ],
       "versions": [
         {
           "version": "1.0",
