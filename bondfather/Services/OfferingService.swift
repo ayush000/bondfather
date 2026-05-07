@@ -22,13 +22,19 @@ struct OfferingService {
         return parseOfferings(from: html).filter { $0.markets.contains("TLN") }
     }
 
+    private static let urlDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
     private func buildURL() throws -> URL {
         let today = Date.now
         guard let nextYear = Calendar.current.date(byAdding: .year, value: 1, to: today) else {
             throw OfferingServiceError.invalidURL
         }
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
+        let fmt = Self.urlDateFormatter
         var components = URLComponents()
         components.scheme = "https"
         components.host = "nasdaqbaltic.com"
@@ -53,14 +59,12 @@ struct OfferingService {
     }
 
     private func extractRows(from tbody: String) -> [String] {
-        var rows: [String] = []
-        var remaining = tbody
-        while let trStart = remaining.range(of: "<tr>"),
-              let trEnd = remaining.range(of: "</tr>") {
-            rows.append(String(remaining[trStart.upperBound..<trEnd.lowerBound]))
-            remaining = String(remaining[trEnd.upperBound...])
+        guard let regex = try? NSRegularExpression(pattern: #"(?s)<tr[^>]*>(.*?)</tr>"#) else { return [] }
+        let matches = regex.matches(in: tbody, range: NSRange(tbody.startIndex..., in: tbody))
+        return matches.compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: tbody) else { return nil }
+            return String(tbody[range])
         }
-        return rows
     }
 
     private func parseRow(_ row: String) -> Offering? {

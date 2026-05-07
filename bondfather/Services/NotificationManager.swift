@@ -22,7 +22,7 @@ struct NotificationManager {
         content.sound = .default
 
         let request = UNNotificationRequest(
-            identifier: "com.bondfather.newOfferings.\(Int(Date.now.timeIntervalSince1970))",
+            identifier: "com.bondfather.newOfferings",
             content: content,
             trigger: nil
         )

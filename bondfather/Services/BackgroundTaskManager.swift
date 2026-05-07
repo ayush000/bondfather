@@ -12,7 +12,8 @@ final class BackgroundTaskManager {
             forTaskWithIdentifier: Self.taskIdentifier,
             using: nil
         ) { [weak self] task in
-            self?.handleRefresh(task: task as! BGProcessingTask)
+            guard let processingTask = task as? BGProcessingTask else { return }
+            self?.handleRefresh(task: processingTask)
         }
     }
 
@@ -20,8 +21,8 @@ final class BackgroundTaskManager {
         let request = BGProcessingTaskRequest(identifier: Self.taskIdentifier)
         request.requiresNetworkConnectivity = true
         request.requiresExternalPower = false
-        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date.now)
-        components.day = (components.day ?? 1) + 1
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now)!
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: tomorrow)
         components.hour = 6
         components.minute = 0
         request.earliestBeginDate = Calendar.current.date(from: components)
@@ -30,6 +31,7 @@ final class BackgroundTaskManager {
 
     private func handleRefresh(task: BGProcessingTask) {
         let taskHandle = Task {
+            defer { scheduleNextRefresh() }
             do {
                 let offerings = try await service.fetchOfferings()
                 let newOnes = store.newOfferings(from: offerings)
@@ -39,13 +41,10 @@ final class BackgroundTaskManager {
             } catch {
                 task.setTaskCompleted(success: false)
             }
-            scheduleNextRefresh()
         }
 
         task.expirationHandler = {
             taskHandle.cancel()
-            task.setTaskCompleted(success: false)
-            self.scheduleNextRefresh()
         }
     }
 }

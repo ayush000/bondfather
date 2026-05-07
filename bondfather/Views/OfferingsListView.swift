@@ -18,11 +18,14 @@ struct OfferingsListView: View {
             ProgressView()
         case .loaded(let offerings):
             if offerings.isEmpty {
-                ContentUnavailableView(
-                    "No Upcoming Offerings",
-                    systemImage: "chart.line.uptrend.xyaxis",
-                    description: Text("No Estonian public offerings found for the next year.")
-                )
+                List {
+                    ContentUnavailableView(
+                        "No Upcoming Offerings",
+                        systemImage: "chart.line.uptrend.xyaxis",
+                        description: Text("No Estonian public offerings found for the next year.")
+                    )
+                }
+                .refreshable { await viewModel.load() }
             } else {
                 List(offerings) { offering in
                     OfferingRow(offering: offering)
@@ -30,11 +33,13 @@ struct OfferingsListView: View {
                 .refreshable { await viewModel.load() }
             }
         case .error:
-            ContentUnavailableView(
-                "Could not load offerings",
-                systemImage: "exclamationmark.triangle",
-                description: Text("Pull to refresh.")
-            )
+            List {
+                ContentUnavailableView(
+                    "Could not load offerings",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("Pull to refresh.")
+                )
+            }
             .refreshable { await viewModel.load() }
         }
     }
