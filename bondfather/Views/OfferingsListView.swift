@@ -2,6 +2,8 @@ import SwiftUI
 
 struct OfferingsListView: View {
     @State private var viewModel = OfferingsViewModel()
+    @State private var showingSettings = false
+    @AppStorage("hasSeenSettingsPrompt") private var hasSeenSettingsPrompt = false
 
     var body: some View {
         NavigationStack {
@@ -10,8 +12,28 @@ struct OfferingsListView: View {
                 .navigationDestination(for: Offering.self) { offering in
                     OfferingDetailView(offering: offering)
                 }
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                    }
+                }
+                .sheet(isPresented: $showingSettings) {
+                    SettingsView(onSave: {
+                        Task { await viewModel.load() }
+                    })
+                }
         }
-        .task { await viewModel.load() }
+        .task {
+            await viewModel.load()
+            if !hasSeenSettingsPrompt, Secrets.geminiAPIKey == nil {
+                hasSeenSettingsPrompt = true
+                showingSettings = true
+            }
+        }
     }
 
     @ViewBuilder

@@ -1,14 +1,26 @@
 import Foundation
 
 enum Secrets {
+    private static let geminiKey = "gemini_api_key"
+
     static var geminiAPIKey: String? {
-        guard let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
-              let data = try? Data(contentsOf: url),
-              let dict = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-              let key = dict["GEMINI_API_KEY"] as? String,
-              !key.isEmpty,
-              key != "YOUR_GEMINI_API_KEY"
+        guard let value = KeychainStore.getString(forKey: geminiKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty
         else { return nil }
-        return key
+        return value
+    }
+
+    static func setGeminiAPIKey(_ value: String) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            KeychainStore.delete(forKey: geminiKey)
+        } else {
+            KeychainStore.setString(trimmed, forKey: geminiKey)
+        }
+    }
+
+    static func clearGeminiAPIKey() {
+        KeychainStore.delete(forKey: geminiKey)
     }
 }

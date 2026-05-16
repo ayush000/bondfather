@@ -19,7 +19,7 @@
         {
           "version": "1.1",
           "date": "2026-05-16",
-          "localizedDescription": "Adds bond detail screen with ISIN, pricing, and settlement info; shows interest rate in the list; enriches each issuer with AI-generated sector, business summary, and risk indicators.",
+          "localizedDescription": "Adds bond detail screen with ISIN, pricing, and settlement info; shows interest rate in the list; enriches each issuer with AI-generated sector, business summary, and risk indicators (bring your own Gemini API key in Settings).",
           "downloadURL": "https://github.com/ayush000/bondfather/releases/download/v1.1/bondfather.ipa",
           "size": 12223604
         },
