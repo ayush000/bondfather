@@ -6,6 +6,9 @@ enum OfferingServiceError: Error {
 }
 
 struct OfferingService {
+    private let geminiService = GeminiService()
+    private let enrichmentCache = EnrichmentCache()
+
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -19,7 +22,138 @@ struct OfferingService {
         guard let html = String(data: data, encoding: .utf8) else {
             throw OfferingServiceError.parseFailure
         }
-        return parseOfferings(from: html).filter { $0.markets.contains("TLN") }
+        let partials = parseOfferings(from: html).filter { $0.offering.markets.contains("TLN") }
+        let withDetails = await enrichWithInterestRates(partials)
+        return await enrichWithGemini(withDetails)
+    }
+
+    private func enrichWithGemini(_ offerings: [Offering]) async -> [Offering] {
+        var cache = enrichmentCache.load()
+        let needed = offerings.filter { cache[$0.id] == nil }
+
+        let fetched = await withTaskGroup(of: (String, OfferingEnrichment?).self) { group in
+            for offering in needed {
+                group.addTask {
+                    let result = try? await geminiService.enrich(
+                        issuerName: offering.issuerName,
+                        ticker: offering.id
+                    )
+                    return (offering.id, result)
+                }
+            }
+            var results: [String: OfferingEnrichment] = [:]
+            for await (id, enrichment) in group {
+                if let enrichment { results[id] = enrichment }
+            }
+            return results
+        }
+
+        for (id, value) in fetched { cache[id] = value }
+        if !fetched.isEmpty { enrichmentCache.save(cache) }
+
+        return offerings.map { offering in
+            Offering(
+                id: offering.id,
+                issuerName: offering.issuerName,
+                subscriptionStart: offering.subscriptionStart,
+                subscriptionEnd: offering.subscriptionEnd,
+                markets: offering.markets,
+                interestRate: offering.interestRate,
+                isin: offering.isin,
+                priceOfSecurity: offering.priceOfSecurity,
+                minimumInvestment: offering.minimumInvestment,
+                settlementDate: offering.settlementDate,
+                enrichment: cache[offering.id]
+            )
+        }
+    }
+
+    struct NewsDetails: Sendable {
+        var interestRate: Double?
+        var isin: String?
+        var priceOfSecurity: String?
+        var minimumInvestment: String?
+        var settlementDate: String?
+
+        nonisolated init(
+            interestRate: Double? = nil,
+            isin: String? = nil,
+            priceOfSecurity: String? = nil,
+            minimumInvestment: String? = nil,
+            settlementDate: String? = nil
+        ) {
+            self.interestRate = interestRate
+            self.isin = isin
+            self.priceOfSecurity = priceOfSecurity
+            self.minimumInvestment = minimumInvestment
+            self.settlementDate = settlementDate
+        }
+    }
+
+    private func enrichWithInterestRates(_ partials: [ParsedOffering]) async -> [Offering] {
+        await withTaskGroup(of: (Int, NewsDetails).self) { group in
+            for (index, partial) in partials.enumerated() {
+                group.addTask {
+                    guard let url = partial.newsURL else { return (index, NewsDetails()) }
+                    return (index, await Self.fetchDetails(from: url))
+                }
+            }
+            var details = Array<NewsDetails>(repeating: NewsDetails(), count: partials.count)
+            for await (index, d) in group { details[index] = d }
+            return zip(partials, details).map { partial, d in
+                let o = partial.offering
+                return Offering(
+                    id: o.id,
+                    issuerName: o.issuerName,
+                    subscriptionStart: o.subscriptionStart,
+                    subscriptionEnd: o.subscriptionEnd,
+                    markets: o.markets,
+                    interestRate: d.interestRate,
+                    isin: d.isin,
+                    priceOfSecurity: d.priceOfSecurity,
+                    minimumInvestment: d.minimumInvestment,
+                    settlementDate: d.settlementDate,
+                    enrichment: nil
+                )
+            }
+        }
+    }
+
+    private static func fetchDetails(from url: URL) async -> NewsDetails {
+        guard let (data, _) = try? await URLSession.shared.data(from: url),
+              let html = String(data: data, encoding: .utf8) else { return NewsDetails() }
+        return parseDetails(from: html)
+    }
+
+    static func parseDetails(from html: String) -> NewsDetails {
+        let stripped = html
+            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var details = NewsDetails()
+        if let rate = firstMatch(in: stripped, pattern: #"Interest rate[\s:]*([0-9]+(?:[.,][0-9]+)?)\s*%"#) {
+            details.interestRate = Double(rate.replacingOccurrences(of: ",", with: "."))
+        }
+        details.isin = firstMatch(in: stripped, pattern: #"ISIN code[\s:]*([A-Z]{2}[A-Z0-9]{9}[0-9])"#)
+        details.priceOfSecurity = firstMatch(
+            in: stripped,
+            pattern: #"Price of one security[\s:]*(.+?)(?=\s+(?:Minimum investment|Interest rate|Offering period|Settlement date|ISIN code)\b|$)"#
+        )
+        details.minimumInvestment = firstMatch(
+            in: stripped,
+            pattern: #"Minimum investment amount[\s:]*(.+?)(?=\s+(?:Price of one security|Interest rate|Offering period|Settlement date|ISIN code)\b|$)"#
+        )
+        details.settlementDate = firstMatch(in: stripped, pattern: #"Settlement date[\s:]*([0-9]{2}\.[0-9]{2}\.[0-9]{4})"#)
+        return details
+    }
+
+    private static func firstMatch(in text: String, pattern: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              match.numberOfRanges >= 2,
+              let range = Range(match.range(at: 1), in: text) else { return nil }
+        return text[range].trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static let urlDateFormatter: DateFormatter = {
@@ -51,7 +185,12 @@ struct OfferingService {
         return url
     }
 
-    private func parseOfferings(from html: String) -> [Offering] {
+    private struct ParsedOffering {
+        let offering: Offering
+        let newsURL: URL?
+    }
+
+    private func parseOfferings(from html: String) -> [ParsedOffering] {
         guard let tbodyStart = html.range(of: "<tbody>"),
               let tbodyEnd = html.range(of: "</tbody>") else { return [] }
         let tbody = String(html[tbodyStart.upperBound..<tbodyEnd.lowerBound])
@@ -67,7 +206,7 @@ struct OfferingService {
         }
     }
 
-    private func parseRow(_ row: String) -> Offering? {
+    private func parseRow(_ row: String) -> ParsedOffering? {
         let tds = extractTDs(from: row)
         guard tds.count >= 4 else { return nil }
 
@@ -86,15 +225,31 @@ struct OfferingService {
         }()
 
         let markets = extractMarkets(from: tds[3])
+        let newsURL = extractNewsURL(from: tds[2])
         guard !ticker.isEmpty || !issuerName.isEmpty else { return nil }
 
-        return Offering(
+        let offering = Offering(
             id: Offering.makeId(ticker: ticker.isEmpty ? nil : ticker, issuerName: issuerName),
             issuerName: issuerName,
             subscriptionStart: subStart,
             subscriptionEnd: subEnd,
-            markets: markets
+            markets: markets,
+            interestRate: nil,
+            isin: nil,
+            priceOfSecurity: nil,
+            minimumInvestment: nil,
+            settlementDate: nil,
+            enrichment: nil
         )
+        return ParsedOffering(offering: offering, newsURL: newsURL)
+    }
+
+    private func extractNewsURL(from html: String) -> URL? {
+        guard let regex = try? NSRegularExpression(pattern: #"href="([^"]+)""#),
+              let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+              let range = Range(match.range(at: 1), in: html) else { return nil }
+        let decoded = String(html[range]).replacingOccurrences(of: "&amp;", with: "&")
+        return URL(string: decoded)
     }
 
     private func extractTDs(from row: String) -> [String] {

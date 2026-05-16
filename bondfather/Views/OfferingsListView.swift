@@ -4,9 +4,12 @@ struct OfferingsListView: View {
     @State private var viewModel = OfferingsViewModel()
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             content
                 .navigationTitle("Estonian IPOs")
+                .navigationDestination(for: Offering.self) { offering in
+                    OfferingDetailView(offering: offering)
+                }
         }
         .task { await viewModel.load() }
     }
@@ -28,7 +31,9 @@ struct OfferingsListView: View {
                 .refreshable { await viewModel.load() }
             } else {
                 List(offerings) { offering in
-                    OfferingRow(offering: offering)
+                    NavigationLink(value: offering) {
+                        OfferingRow(offering: offering)
+                    }
                 }
                 .refreshable { await viewModel.load() }
             }

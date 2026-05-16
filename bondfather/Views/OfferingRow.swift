@@ -11,12 +11,21 @@ struct OfferingRow: View {
     }()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(offering.issuerName)
-                .font(.headline)
-            Text(subscriptionPeriodText)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(offering.issuerName)
+                    .font(.headline)
+                Text(subscriptionPeriodText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            if let rate = offering.interestRate {
+                Text(String(format: "%.2f%%", rate))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tint)
+                    .monospacedDigit()
+            }
         }
         .padding(.vertical, 4)
     }
