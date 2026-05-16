@@ -2,6 +2,13 @@ import SwiftUI
 
 struct OfferingDetailView: View {
     let offering: Offering
+    @State private var enrichment: OfferingEnrichment?
+    private let service = OfferingService()
+
+    init(offering: Offering) {
+        self.offering = offering
+        _enrichment = State(initialValue: offering.enrichment)
+    }
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -21,7 +28,7 @@ struct OfferingDetailView: View {
                 detailRow("Settlement date", offering.settlementDate)
             }
 
-            if let enrichment = offering.enrichment {
+            if let enrichment {
                 Section("Issuer") {
                     detailRow("Sector", enrichment.sector)
                     if !enrichment.businessSummary.isEmpty {
@@ -41,6 +48,12 @@ struct OfferingDetailView: View {
         }
         .navigationTitle(offering.issuerName)
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await refreshEnrichment() }
+    }
+
+    private func refreshEnrichment() async {
+        guard let updated = try? await service.refreshEnrichment(for: offering) else { return }
+        enrichment = updated
     }
 
     @ViewBuilder

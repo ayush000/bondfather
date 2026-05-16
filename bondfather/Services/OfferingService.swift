@@ -18,13 +18,24 @@ struct OfferingService {
 
     func fetchOfferings() async throws -> [Offering] {
         let url = try buildURL()
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, _) = try await fetchWithRetry(url: url)
         guard let html = String(data: data, encoding: .utf8) else {
             throw OfferingServiceError.parseFailure
         }
         let partials = parseOfferings(from: html).filter { $0.offering.markets.contains("TLN") }
         let withDetails = await enrichWithInterestRates(partials)
         return await enrichWithGemini(withDetails)
+    }
+
+    func refreshEnrichment(for offering: Offering) async throws -> OfferingEnrichment {
+        let result = try await geminiService.enrich(
+            issuerName: offering.issuerName,
+            ticker: offering.id
+        )
+        var cache = enrichmentCache.load()
+        cache[offering.id] = result
+        enrichmentCache.save(cache)
+        return result
     }
 
     private func enrichWithGemini(_ offerings: [Offering]) async -> [Offering] {
@@ -154,6 +165,21 @@ struct OfferingService {
               match.numberOfRanges >= 2,
               let range = Range(match.range(at: 1), in: text) else { return nil }
         return text[range].trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func fetchWithRetry(url: URL, attempts: Int = 3) async throws -> (Data, URLResponse) {
+        var lastError: Error?
+        for attempt in 0..<attempts {
+            do {
+                return try await URLSession.shared.data(from: url)
+            } catch let error as NSError where error.code == NSURLErrorNetworkConnectionLost {
+                lastError = error
+                if attempt < attempts - 1 {
+                    try await Task.sleep(nanoseconds: UInt64(500_000_000 * (attempt + 1)))
+                }
+            }
+        }
+        throw lastError!
     }
 
     private static let urlDateFormatter: DateFormatter = {
