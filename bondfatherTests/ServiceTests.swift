@@ -14,8 +14,11 @@ struct OfferingStoreTests {
         store = OfferingStore(defaults: defaults)
     }
 
-    private func offering(_ ticker: String) -> Offering {
-        Offering(ticker: ticker, issuerName: ticker, subscriptionStart: nil, subscriptionEnd: nil, markets: ["TLN"])
+    private func offering(_ ticker: String, startingOn day: Int? = 6) -> Offering {
+        let start = day.flatMap {
+            Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: $0))
+        }
+        return Offering(ticker: ticker, issuerName: ticker, subscriptionStart: start, subscriptionEnd: nil, markets: [])
     }
 
     @Test func treatsEverythingAsNewInitially() {
@@ -31,8 +34,30 @@ struct OfferingStoreTests {
     @Test func keepsOfferingsThatDropOffTheCalendar() {
         store.markAsSeen([offering("A")])
         store.markAsSeen([offering("B")])
-        #expect(store.knownIds() == ["A", "B"])
-        #expect(store.newOfferings(from: [offering("A")]).isEmpty)
+        #expect(store.newOfferings(from: [offering("A"), offering("B")]).isEmpty)
+    }
+
+    @Test func treatsLaterOfferingUnderSameTickerAsNew() {
+        store.markAsSeen([offering("SKN1T", startingOn: 6)])
+        #expect(store.newOfferings(from: [offering("SKN1T", startingOn: 6)]).isEmpty)
+        #expect(store.newOfferings(from: [offering("SKN1T", startingOn: 20)]).count == 1)
+    }
+
+    @Test func remembersOfferingsWithoutDates() {
+        store.markAsSeen([offering("A", startingOn: nil)])
+        #expect(store.newOfferings(from: [offering("A", startingOn: nil)]).isEmpty)
+    }
+
+    @Test func migratesIdsSavedByEarlierVersions() {
+        let legacyKey = "com.bondfather.knownOfferingIds"
+        defaults.set(["A"], forKey: legacyKey)
+        let current = [offering("A"), offering("B")]
+
+        #expect(store.newOfferings(from: current).map(\.id) == ["B"])
+        store.markAsSeen(current)
+        #expect(defaults.stringArray(forKey: legacyKey) == nil)
+        #expect(store.newOfferings(from: current).isEmpty)
+        #expect(store.newOfferings(from: [offering("A", startingOn: 20)]).count == 1)
     }
 }
 
