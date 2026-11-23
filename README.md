@@ -30,7 +30,7 @@ On first launch the app asks for permission to send notifications, then opens Se
 
 Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and paste it into Settings (the gear icon). The key stays on the device, in the iOS Keychain.
 
-To generate insights, the app sends each issuer's name and ticker to Google's Gemini API (`gemini-2.5-flash`). Results are cached on the device, so each offering is looked up once unless you refresh it.
+To generate insights, the app sends each issuer's name and ticker to Google's Gemini API (`gemini-3.8-flash`). The key goes in a request header, not the URL. Results are cached on the device, so each offering is looked up once unless you refresh it.
 
 ## Build from source
 
@@ -54,6 +54,22 @@ xcodebuild -exportArchive -archivePath build/bondfather.xcarchive -exportOptions
 
 `-allowProvisioningUpdates` lets Xcode create or renew the development provisioning profile. Without it, the archive fails if no valid profile is cached. The IPA ends up at `build/ipa/bondfather.ipa`. To publish a release, upload it to a GitHub release and add a matching entry to `versions` in `altstore-source.json`, with the version, the date, the download URL, and the file size in bytes.
 
+### Tests and linting
+
+Unit tests use Swift Testing and cover the HTML parsing, the Gemini request and response, and the stores. Run them on any iOS 26.4+ simulator:
+
+```bash
+xcodebuild test -project bondfather.xcodeproj -scheme bondfather -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO
+```
+
+Code style is checked with `swift-format`, which ships with Xcode. The settings are in `.swift-format`:
+
+```bash
+xcrun swift-format lint --strict --recursive bondfather bondfatherTests
+```
+
+To fix formatting in place, run `xcrun swift-format format --in-place --recursive bondfather bondfatherTests`. GitHub Actions runs the lint and the tests on every push to `main` and on pull requests.
+
 ### Triggering the background refresh
 
 iOS won't run the daily task on demand. To test it, run the app from Xcode, pause the debugger, and enter:
@@ -70,19 +86,23 @@ Then resume the app. To get a notification, there has to be an offering the app 
 bondfather/
 ├── Models/          Offering and AI enrichment types
 ├── Services/
-│   ├── OfferingService         scrapes the calendar and announcement pages, attaches enrichment
+│   ├── OfferingService         loads the calendar and announcement pages, attaches enrichment
+│   ├── OfferingParser          parses the calendar and announcement HTML
 │   ├── GeminiService           issuer insights via Gemini structured JSON output
 │   ├── EnrichmentCache         cached Gemini results, stored in UserDefaults
 │   ├── BackgroundTaskManager   daily BGProcessingTask (com.bondfather.refresh)
 │   ├── OfferingStore           IDs of offerings already seen, used to detect new ones
 │   ├── NotificationManager     local notifications
-│   └── KeychainStore, Secrets  Gemini API key storage
+│   ├── KeychainStore, Secrets  Gemini API key storage
+│   └── Logging                 os.Logger categories
 ├── ViewModels/      list loading state
 └── Views/           SwiftUI list, detail, and settings screens
+bondfatherTests/     unit tests
 ```
 
 - Offerings are keyed by ticker. If an offering has no ticker, a SHA-256 hash of the issuer name is used instead.
-- The calendar and announcement pages are parsed with regular expressions, so a layout change on nasdaqbaltic.com can break parsing.
+- The calendar and announcement pages are parsed with regular expressions, so a layout change on nasdaqbaltic.com can break parsing. The parser tests use markup taken from the live pages.
+- Errors are logged with `os.Logger` under the app's bundle identifier. Filter by it in Console.app to debug a device.
 - The original design spec and implementation plan are in [`docs/superpowers`](docs/superpowers). The code has since moved on from them in places.
 
 ## Disclaimer
