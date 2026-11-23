@@ -17,6 +17,13 @@
       ],
       "versions": [
         {
+          "version": "1.2",
+          "date": "2026-11-24",
+          "localizedDescription": "Issuer insights now use Gemini 4 Hydrogen, with Gemini 3.8 Flash as a fallback. A new offering from a company you've already been alerted about now gets its own alert. When an insights refresh fails, the previous insights and the AI disclaimer stay on screen. After updating, re-save your Gemini API key in Settings once so the morning check can fetch insights while your phone is locked.",
+          "downloadURL": "https://github.com/ayush000/bondfather/releases/download/v1.2/bondfather.ipa",
+          "size": 12321103
+        },
+        {
           "version": "1.1",
           "date": "2026-05-16",
           "localizedDescription": "Adds bond detail screen with ISIN, pricing, and settlement info; shows interest rate in the list; enriches each issuer with AI-generated sector, business summary, and risk indicators (bring your own Gemini API key in Settings).",

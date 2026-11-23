@@ -40,19 +40,19 @@ You need Xcode 26.4 or later. The deployment target is iOS 26.4, and there are n
 2. Under **Signing & Capabilities**, pick your own team. If Xcode can't register the bundle identifier `icedev.bondfather`, change it to one of your own.
 3. Run the `bondfather` scheme.
 
-To build an IPA for sideloading, set `teamID` in `ExportOptions.plist` to your team ID, archive the app:
+To build an IPA for sideloading, archive the app without code signing, which needs no Apple account:
 
 ```bash
-xcodebuild -project bondfather.xcodeproj -scheme bondfather -configuration Release -archivePath build/bondfather.xcarchive -allowProvisioningUpdates archive
+xcodebuild -project bondfather.xcodeproj -scheme bondfather -configuration Release -destination 'generic/platform=iOS' -archivePath build/bondfather.xcarchive CODE_SIGNING_ALLOWED=NO archive
 ```
 
-then export the IPA:
+then package the app as an IPA:
 
 ```bash
-xcodebuild -exportArchive -archivePath build/bondfather.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/ipa -allowProvisioningUpdates
+rm -rf build/ipa && mkdir -p build/ipa/Payload && cp -R build/bondfather.xcarchive/Products/Applications/bondfather.app build/ipa/Payload/ && (cd build/ipa && zip -qry bondfather.ipa Payload && rm -rf Payload)
 ```
 
-`-allowProvisioningUpdates` lets Xcode create or renew the development provisioning profile. Without it, the archive fails if no valid profile is cached. The IPA ends up at `build/ipa/bondfather.ipa`. To publish a release, upload it to a GitHub release and add a matching entry to `versions` in `altstore-source.json`, with the version, the date, the download URL, and the file size in bytes.
+The IPA ends up at `build/ipa/bondfather.ipa`. It's unsigned: AltStore and SideStore sign it with the installing person's Apple ID. To publish a release, upload it to a GitHub release and add a matching entry to `versions` in `altstore-source.json`, with the version, the date, the download URL, and the file size in bytes.
 
 ### Tests and linting
 
