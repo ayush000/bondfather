@@ -21,7 +21,7 @@ nonisolated enum GeminiServiceError: LocalizedError {
 
 /// Generates issuer insights with Gemini structured JSON output.
 nonisolated struct GeminiService: Sendable {
-    static let model = "gemini-3.8-flash"
+    static let model = "gemini-4-hydrogen"
     private static let endpoint = URL(
         string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
     )!
@@ -83,7 +83,7 @@ nonisolated struct GeminiService: Sendable {
             contents: [.init(parts: [.init(text: prompt)])],
             generationConfig: .init(
                 responseJsonSchema: schema,
-                // A short classification doesn't need deep reasoning; low keeps it fast and cheap.
+                // The model defaults to high. A short classification doesn't need that; low keeps it fast and cheap.
                 thinkingConfig: .init(thinkingLevel: "low")
             )
         )

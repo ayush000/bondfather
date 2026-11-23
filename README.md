@@ -30,7 +30,7 @@ On first launch the app asks for permission to send notifications, then opens Se
 
 Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and paste it into Settings (the gear icon). The key stays on the device, in the iOS Keychain.
 
-To generate insights, the app sends each issuer's name and ticker to Google's Gemini API (`gemini-3.8-flash`). The key goes in a request header, not the URL. Results are cached on the device, so each offering is looked up once unless you refresh it.
+To generate insights, the app sends each issuer's name and ticker to Google's Gemini API (`gemini-4-hydrogen`). The key goes in a request header, not the URL. Results are cached on the device, so each offering is looked up once unless you refresh it.
 
 ## Build from source
 
