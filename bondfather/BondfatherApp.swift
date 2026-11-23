@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct bondfatherApp: App {
+struct BondfatherApp: App {
     private let backgroundTaskManager = BackgroundTaskManager()
     private let notificationManager = NotificationManager()
 

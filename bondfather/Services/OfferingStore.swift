@@ -1,15 +1,24 @@
 import Foundation
 
+/// IDs of offerings the app has already seen, used to detect new ones.
 struct OfferingStore {
     private static let key = "com.bondfather.knownOfferingIds"
 
-    func knownIds() -> Set<String> {
-        let array = UserDefaults.standard.stringArray(forKey: Self.key) ?? []
-        return Set(array)
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
     }
 
-    func save(_ offerings: [Offering]) {
-        UserDefaults.standard.set(offerings.map(\.id), forKey: Self.key)
+    func knownIds() -> Set<String> {
+        Set(defaults.stringArray(forKey: Self.key) ?? [])
+    }
+
+    /// Adds the offerings to the known set. Earlier IDs are kept, so an offering that briefly
+    /// drops off the calendar doesn't trigger a second alert when it comes back.
+    func markAsSeen(_ offerings: [Offering]) {
+        let ids = knownIds().union(offerings.map(\.id))
+        defaults.set(ids.sorted(), forKey: Self.key)
     }
 
     func newOfferings(from offerings: [Offering]) -> [Offering] {

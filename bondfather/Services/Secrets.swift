@@ -4,9 +4,10 @@ enum Secrets {
     private static let geminiKey = "gemini_api_key"
 
     static var geminiAPIKey: String? {
-        guard let value = KeychainStore.getString(forKey: geminiKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty
+        guard
+            let value = KeychainStore.getString(forKey: geminiKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !value.isEmpty
         else { return nil }
         return value
     }

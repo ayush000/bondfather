@@ -1,47 +1,57 @@
 import Foundation
 import Security
+import os
 
 enum KeychainStore {
     private static let service = "com.bondfather.keychain"
 
+    /// Saves the value as a generic password.
+    ///
+    /// The item is readable after the first unlock so the background refresh can use it while the
+    /// device is locked, and it is never migrated to another device through backups.
     static func setString(_ value: String, forKey key: String) {
-        guard let data = value.data(using: .utf8) else { return }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(value.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
-        let attributes: [String: Any] = [kSecValueData as String: data]
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        var status = SecItemUpdate(baseQuery(forKey: key) as CFDictionary, attributes as CFDictionary)
         if status == errSecItemNotFound {
-            var addQuery = query
-            addQuery[kSecValueData as String] = data
-            SecItemAdd(addQuery as CFDictionary, nil)
+            let addQuery = baseQuery(forKey: key).merging(attributes) { _, new in new }
+            status = SecItemAdd(addQuery as CFDictionary, nil)
+        }
+        if status != errSecSuccess {
+            Logger.keychain.error("Couldn't save keychain item: OSStatus \(status)")
         }
     }
 
     static func getString(forKey key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
+        var query = baseQuery(forKey: key)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
         var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let value = String(data: data, encoding: .utf8)
-        else { return nil }
-        return value
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else {
+            if status != errSecItemNotFound {
+                Logger.keychain.error("Couldn't read keychain item: OSStatus \(status)")
+            }
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
     }
 
     static func delete(forKey key: String) {
-        let query: [String: Any] = [
+        let status = SecItemDelete(baseQuery(forKey: key) as CFDictionary)
+        if status != errSecSuccess, status != errSecItemNotFound {
+            Logger.keychain.error("Couldn't delete keychain item: OSStatus \(status)")
+        }
+    }
+
+    private static func baseQuery(forKey key: String) -> [String: Any] {
+        [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
         ]
-        SecItemDelete(query as CFDictionary)
     }
 }

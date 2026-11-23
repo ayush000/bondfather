@@ -4,8 +4,15 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     var onSave: () -> Void
 
-    @State private var apiKey: String = Secrets.geminiAPIKey ?? ""
-    @State private var hasExistingKey: Bool = Secrets.geminiAPIKey != nil
+    @State private var apiKey: String
+    @State private var hasExistingKey: Bool
+
+    init(onSave: @escaping () -> Void) {
+        self.onSave = onSave
+        let savedKey = Secrets.geminiAPIKey
+        _apiKey = State(initialValue: savedKey ?? "")
+        _hasExistingKey = State(initialValue: savedKey != nil)
+    }
 
     var body: some View {
         NavigationStack {
@@ -18,9 +25,12 @@ struct SettingsView: View {
                     Text("Gemini API Key")
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Used to generate the issuer insights shown on each bond. The key is stored only on this device, in the iOS Keychain.")
-                        Link("Get a free key at aistudio.google.com",
-                             destination: URL(string: "https://aistudio.google.com/apikey")!)
+                        Text(
+                            "Used to generate the issuer insights shown on each bond. The key is stored only on this device, in the iOS Keychain."
+                        )
+                        Link(
+                            "Get a free key at aistudio.google.com",
+                            destination: URL(string: "https://aistudio.google.com/apikey")!)
                     }
                 }
 
@@ -52,4 +62,8 @@ struct SettingsView: View {
             }
         }
     }
+}
+
+#Preview {
+    SettingsView(onSave: {})
 }
