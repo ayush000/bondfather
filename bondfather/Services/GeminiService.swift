@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 nonisolated enum GeminiServiceError: LocalizedError {
     case missingAPIKey
@@ -21,23 +22,52 @@ nonisolated enum GeminiServiceError: LocalizedError {
 
 /// Generates issuer insights with Gemini structured JSON output.
 nonisolated struct GeminiService: Sendable {
-    static let model = "gemini-4-hydrogen"
-    private static let endpoint = URL(
-        string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
-    )!
+    typealias Transport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+
+    static let primaryModel = "gemini-4-hydrogen"
+    /// Used once when the primary model fails in a way another model might not.
+    static let fallbackModel = "gemini-3.8-flash"
 
     let apiKey: String
-    var session: URLSession = .shared
+    var transport: Transport = { try await URLSession.shared.data(for: $0) }
 
     func enrich(issuerName: String, ticker: String?) async throws -> OfferingEnrichment {
-        var request = URLRequest(url: Self.endpoint, timeoutInterval: 60)
+        let body = try JSONEncoder().encode(Self.makeRequest(issuerName: issuerName, ticker: ticker))
+        do {
+            return try await generate(model: Self.primaryModel, body: body)
+        } catch let error where Self.shouldTryFallback(after: error) {
+            Logger.gemini.notice(
+                "\(Self.primaryModel, privacy: .public) failed: \(error.localizedDescription, privacy: .public). Retrying with \(Self.fallbackModel, privacy: .public)."
+            )
+            return try await generate(model: Self.fallbackModel, body: body)
+        }
+    }
+
+    /// True for failures tied to the model: unavailable to this key (403, 404), out of quota (429, counted per
+    /// model), overloaded (5xx), or an unusable answer. Bad requests, invalid keys and network errors would fail
+    /// the same way on any model.
+    static func shouldTryFallback(after error: any Error) -> Bool {
+        switch error {
+        case GeminiServiceError.requestFailed(let statusCode, _):
+            [403, 404, 429].contains(statusCode) || (500...599).contains(statusCode)
+        case GeminiServiceError.emptyResponse, is DecodingError:
+            true
+        default:
+            false
+        }
+    }
+
+    private func generate(model: String, body: Data) async throws -> OfferingEnrichment {
+        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent")
+        else { throw URLError(.badURL) }
+        var request = URLRequest(url: url, timeoutInterval: 60)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         // A header keeps the key out of URLs, which can end up in logs and crash reports.
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        request.httpBody = try JSONEncoder().encode(Self.makeRequest(issuerName: issuerName, ticker: ticker))
+        request.httpBody = body
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await transport(request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             let message = try? JSONDecoder().decode(ErrorResponse.self, from: data).error.message
             throw GeminiServiceError.requestFailed(statusCode: http.statusCode, message: message)
