@@ -1,9 +1,18 @@
 name: CI
 
+# Docs and the AltStore source don't affect the build, so changes to only those skip CI.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "altstore-source.json"
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "altstore-source.json"
   workflow_dispatch:
 
 permissions:
@@ -26,10 +35,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Lint
-        run: xcrun swift-format lint --strict --recursive bondfather bondfatherTests
-
-      - name: Pick a simulator
+      # Start the simulator first: `simctl boot` returns right away and the cold boot runs in the background while
+      # the lint and build steps run, instead of after them.
+      - name: Boot a simulator
         id: simulator
         run: |
           udid=$(xcrun simctl list devices available --json | jq -r '
@@ -40,6 +48,10 @@ jobs:
               | {version: $version, udid}]
             | sort_by(.version) | last | .udid')
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"
+
+      - name: Lint
+        run: xcrun swift-format lint --strict --recursive bondfather bondfatherTests
 
       - name: Test
         run: |

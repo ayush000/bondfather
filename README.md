@@ -68,7 +68,7 @@ Code style is checked with `swift-format`, which ships with Xcode. The settings 
 xcrun swift-format lint --strict --recursive bondfather bondfatherTests
 ```
 
-To fix formatting in place, run `xcrun swift-format format --in-place --recursive bondfather bondfatherTests`. GitHub Actions runs the lint and the tests on every push to `main` and on pull requests.
+To fix formatting in place, run `xcrun swift-format format --in-place --recursive bondfather bondfatherTests`. GitHub Actions runs the lint and the tests on pushes to `main` and on pull requests, except when a change only touches docs or `altstore-source.json`.
 
 ### Triggering the background refresh
 
